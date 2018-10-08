@@ -1,20 +1,3 @@
-/* Starter code for a system tool using only system calls. In this practical, we will make no use of
- * standard C library calls -- we will only use system calls provided by the Linux kernel, and do
- * everything else ourselves. The only exception is localtime(), which can be used to convert seconds
- * to sensible dates.
- *
- * Kasim Terzic, Sep 2018
- *
- * See:
- *
- *  https://blog.packagecloud.io/eng/2016/04/05/the-definitive-guide-to-linux-system-calls/
- *  https://en.wikibooks.org/wiki/X86_Assembly/Interfacing_with_Linux
- *  http://ibiblio.org/gferg/ldp/GCC-Inline-Assembly-HOWTO.html
- *
- *  man 2 syscalls
- *  man 2 stat opendir readdir write localtime inode getdents
- */
-
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -22,6 +5,7 @@
 #include <time.h>
 #include <dirent.h>
 
+//To be removed
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
@@ -29,7 +13,7 @@
 // A complete list of linux system call numbers can be found in: /usr/include/asm/unistd_64.h
 #define WRITE_SYSCALL 1
 // #define GETDENTS_SYSCALL 74  //Does not work
-#define BUF_SIZE 1024
+// #define BUF_SIZE 1024
 
 //This is the struct that gets printed out. The different attributes are retrieved
 //from the stat system call
@@ -48,7 +32,7 @@ typedef struct myFile {
   char*      d_name; /* Filename (null-terminated) */
 } MyFile;
 
-
+// Maybe?
 // typedef struct fileName {
 //   char*      d_name;
 //   fileName*   next;
@@ -92,7 +76,7 @@ struct linux_dirent {
 //End of copy-paste
 
 //Custom implementation of the string.h function strlen
-int str_length(char* s) {
+int my_strlen(char* s) {
   if (s == NULL) return 0;
 
   int length = 0;
@@ -105,49 +89,35 @@ int str_length(char* s) {
   return length;
 }
 
-// //Implementation of the getdents system call, returns linked list of filenames
-// FileName* getdents_sys(FileName* filenames, int argc, char** argv) {
-//
-//   FileName* last_fn = filenames;
-//
-//   //Taken from the man page with slight tweaks
-//     int fd, nread;            //Variables to monitor syscall success/failure
-//     char buf[BUF_SIZE];       //Buffer
-//     struct linux_dirent *d;   //Linked list of linux_dirent structs
-//     int bpos;                 //
-//     // char d_type;              //Type of file (directory, file, etc.)
-//
-//     fd = open(argc > 1 ? argv[1] : ".", O_RDONLY | O_DIRECTORY);
-//          if (fd == -1) {
-//           fprintf(stderr ,"Something went wrong, fd is: %d\n", fd);
-//          }
-//
-//          for ( ; ; ) {  //TODO change to while (1)?
-//            nread = syscall(SYS_getdents, fd, buf, BUF_SIZE);
-//
-//              if (nread == -1) {
-//                //ERROR, changed from original
-//                  fprintf(stderr ,"Something went wrong, nread is: %d\n", nread);
-//               } else {
-//                 //All works fine
-//                   fprintf(stderr ,"All is well, nread is: %d\n", nread);
-//                   break;
-//                }
-//         }
-//         for (bpos = 0; bpos < nread;) {
-//           d = (struct linux_dirent *) (buf + bpos);
-//           fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
-//           fprintf(stderr, "File: %s\n", d->d_name);
-//           //TODO add
-//           bpos += d->d_reclen;
-//          }
-//     //End of copy-paste
-// }
+int my_getdents(long handle, char* text, size_t text_len) {
+  // struct linux_dirent
+  return syscall(SYS_getdents, handle, text, text_len);
+}
+
+int my_stat(long handle, char* text, size_t text_len) {
+  return 0;
+}
+
+int my_open(const char *path) {
+  return open(path, O_RDONLY | O_DIRECTORY);
+}
+
+
+int my_write(long handle, char* text, size_t text_len) {
+  //Taken from starter code
+  return syscall( WRITE_SYSCALL, handle, text, text_len );
+}
+
+
+  // Writes to stderr
+  // my_write_err(long handle, char* text, size_t text_len) {
+  //
+  // }
 
 int main(int argc, char** argv) {
   /*
   *Logic*
-  * Use getdents yo retrieve file name: http://man7.org/linux/man-pages/man2/getdents.2.html
+  * Use getdents to retrieve file name: http://man7.org/linux/man-pages/man2/getdents.2.html
   * Use stat to retrieve file meta data from file name: http://man7.org/linux/man-pages/man2/stat.2.html
   * Write retrieved data to console
   *
@@ -160,71 +130,50 @@ int main(int argc, char** argv) {
   // fn = getdents_sys(fn, argc, argv);
 
   /*---STAT---*/
-  struct stat sb;
-
-  if (lstat(argv[1], &sb) == -1) {
-      fprintf(stderr, "Error: Cannot retrie data on filename %s\n", argv[1]);
-      return -1;
-   }
-
-
-  // /*---GETDENTS---*/
-  // //Taken from the man page with slight tweaks
-  //   int fd, nread;            //Variables to monitor syscall success/failure
-  //   char buf[BUF_SIZE];       //Buffer
-  //   struct linux_dirent *d;   //Linked list of linux_dirent structs
-  //   int bpos;                 //
-  //   // char d_type;              //Type of file (directory, file, etc.)
+  // struct stat sb;
   //
-  //   fd = open(argc > 1 ? argv[1] : ".", O_RDONLY | O_DIRECTORY);
-  //        if (fd == -1) {
-  //         fprintf(stderr ,"Error: Something went wrong, fd is: %d\n", fd);
-  //         return -1;
-  //        }
-  //
-  //        for ( ; ; ) {  //TODO change to while (1)?
-  //          nread = syscall(SYS_getdents, fd, buf, BUF_SIZE);
-  //
-  //            if (nread == -1) {
-  //              //ERROR, changed from original
-  //                fprintf(stderr ,"Something went wrong, nread is: %d\n", nread);
-  //             } else {
-  //               //All works fine
-  //                 fprintf(stderr ,"All is well, nread is: %d\n", nread);
-  //                 break;
-  //              }
-  //       }
-  //       for (bpos = 0; bpos < nread;) {
-  //         d = (struct linux_dirent *) (buf + bpos);
-  //         // fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
-  //         fprintf(stderr, "File: %s\n", d->d_name);
-  //
-  //         bpos += d->d_reclen;
-  //        }
-  //   //End of copy-paste
+  // if (lstat(argv[1], &sb) == -1) {
+  //     fprintf(stderr, "Error: Cannot retrie data on filename %s\n", argv[1]);
+  //     return -1;
+  //  }
 
 
+  /*---GETDENTS---*/
+  //Taken from the man page with slight tweaks
+    int fd, nread;            //Variables to monitor syscall success/failure
+    size_t buf_size = 1024;   //Size of buffer to retrieve data in
+    char buf[buf_size];       //Buffer
+    struct linux_dirent *d;   //Linked list of linux_dirent structs
+    int bpos;                 //
+    // char d_type;              //Type of file (directory, file, etc.)
 
+    // fd = open(argc > 1 ? argv[1] : ".", O_RDONLY | O_DIRECTORY);
+    fd = my_open(argc > 1 ? argv[1] : ".");
+         if (fd == -1) {
+          fprintf(stderr ,"Error: Something went wrong, fd is: %d\n", fd);
+          return -1;
+         }
 
+         for ( ; ; ) {
+           // nread = syscall(SYS_getdents, fd, buf, BUF_SIZE);
+           nread = my_getdents(fd, buf, buf_size);
 
-//Taken from starter code
-  // I am using long ints here to avoid converting them for asm (rxx registers are 64 bits)
+             if (nread == -1) {
+               //ERROR, changed from original
+                 fprintf(stderr ,"Something went wrong, nread is: %d\n", nread);
+              } else {
+                //All works fine
+                  fprintf(stderr ,"All is well, nread is: %d\n", nread);
+                  break;
+               }
+        }
+        for (bpos = 0; bpos < nread;) {
+          d = (struct linux_dirent *) (buf + bpos);
+          // fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
+          fprintf(stderr, "File: %s\n", d->d_name);
 
-  char* text = "Hello world! We come in peace!\n";    // String to print
-  size_t len = 31;     // Length of our string, which we need to pass to write syscall
-  long handle = 1;     // 1 for stdout, 2 for stderr, file handle from open() for files
-  long ret = -1;       // Return value received from the system call
+          bpos += d->d_reclen;
+         }
+    //End of copy-paste
 
-  // First way is to use the wrapper function defined in POSIX. This is the "normal" way
-  // of doing things. You may wish to use this in the first instance to get a basic working
-  // solution before refactoring it to call the system calls directly
-  ret = write(handle, text, len);
-
-  // Using the Linux syscall function for generic calls to the kernel
-  // Note -- first argument is the system call number for write. Also note how similar
-  // this is to the wrapper above
-  ret = syscall( WRITE_SYSCALL, handle, text, len );
-
-
-  return ret;
 }
