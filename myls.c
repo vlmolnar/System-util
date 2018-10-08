@@ -94,8 +94,9 @@ int my_getdents(long handle, char* text, size_t text_len) {
   return syscall(SYS_getdents, handle, text, text_len);
 }
 
-int my_stat(long handle, char* text, size_t text_len) {
-  return 0;
+int my_stat(char* filename, struct stat *buf) {
+  // Stat function header: stat(const char *path, struct stat *buf);
+  return stat(filename, buf);
 }
 
 int my_open(const char *path) {
@@ -172,6 +173,10 @@ int main(int argc, char** argv) {
           // fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
           fprintf(stderr, "File: %s\n", d->d_name);
 
+          /*---STAT---*/
+          struct stat file_stat;
+          int val = my_stat(d->d_name, &file_stat);
+          fprintf(stderr, "Stat size: %d\n", (int)file_stat.st_size);
           bpos += d->d_reclen;
          }
     //End of copy-paste
