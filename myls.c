@@ -75,7 +75,7 @@ struct linux_dirent {
 //            };
 //End of copy-paste
 
-//Custom implementation of the string.h function strlen
+//Custom implementation of the string.h function strlen, measures length of a string
 int my_strlen(char* s) {
   if (s == NULL) return 0;
 
@@ -89,31 +89,53 @@ int my_strlen(char* s) {
   return length;
 }
 
+//Implementation of getdents Linux system call
 int my_getdents(long handle, char* text, size_t text_len) {
   // struct linux_dirent
   return syscall(SYS_getdents, handle, text, text_len);
 }
 
+//Implementation of stat Linux system call
 int my_stat(char* filename, struct stat *buf) {
   // Stat function header: stat(const char *path, struct stat *buf);
   return stat(filename, buf);
 }
 
+////Implementation of open Linux system call
 int my_open(const char *path) {
   return open(path, O_RDONLY | O_DIRECTORY);
 }
 
-
+//Implementation of write Linux system call
 int my_write(long handle, char* text, size_t text_len) {
   //Taken from starter code
   return syscall( WRITE_SYSCALL, handle, text, text_len );
 }
 
+//Writes file data to console
+int write_ls(char* filename, struct stat *file_stat) {
+  //Print permissions https://stackoverflow.com/questions/10323060/printing-file-permissions-like-ls-l-using-stat2-in-c
+  fprintf(stderr, "Stat size in func: %d ", (int)file_stat->st_mode);
+  fprintf(stderr, "%d ", (int)file_stat->st_nlink); //done
+  fprintf(stderr, "%d ", (int)file_stat->st_uid); //done
+  fprintf(stderr, "%d ", (int)file_stat->st_gid); //done
+  fprintf(stderr, "%d ", (int)file_stat->st_size); //done
+  fprintf(stderr, "%s\n", filename); //done
+  return 0;
 
-  // Writes to stderr
-  // my_write_err(long handle, char* text, size_t text_len) {
-  //
-  // }
+  //Ref:
+  // mode_t    st_mode;    /* protection */
+  // nlink_t   st_nlink;   /* number of hard links */
+  // uid_t     st_uid;     /* user ID of owner */
+  // gid_t     st_gid;     /* group ID of owner */
+  // off_t     st_size;    /* total size, in bytes */
+}
+
+
+// // Writes to stderr, used for debugging
+// my_write_err(long handle, char* text, size_t text_len) {
+//
+// }
 
 int main(int argc, char** argv) {
   /*
@@ -127,18 +149,6 @@ int main(int argc, char** argv) {
   * -rw-rw-r-- 1 20846 20846 3922 Sep 28 17:06 myls.c
   */
 
-  // FileName* fn = NULL;
-  // fn = getdents_sys(fn, argc, argv);
-
-  /*---STAT---*/
-  // struct stat sb;
-  //
-  // if (lstat(argv[1], &sb) == -1) {
-  //     fprintf(stderr, "Error: Cannot retrie data on filename %s\n", argv[1]);
-  //     return -1;
-  //  }
-
-
   /*---GETDENTS---*/
   //Taken from the man page with slight tweaks
     int fd, nread;            //Variables to monitor syscall success/failure
@@ -149,7 +159,7 @@ int main(int argc, char** argv) {
     // char d_type;              //Type of file (directory, file, etc.)
 
     // fd = open(argc > 1 ? argv[1] : ".", O_RDONLY | O_DIRECTORY);
-    fd = my_open(argc > 1 ? argv[1] : ".");
+    fd = my_open(argc > 1 ? argv[1] : ".");   //Changed from man
          if (fd == -1) {
           fprintf(stderr ,"Error: Something went wrong, fd is: %d\n", fd);
           return -1;
@@ -168,17 +178,27 @@ int main(int argc, char** argv) {
                   break;
                }
         }
-        for (bpos = 0; bpos < nread;) {
-          d = (struct linux_dirent *) (buf + bpos);
-          // fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
-          fprintf(stderr, "File: %s\n", d->d_name);
 
+      for (bpos = 0; bpos < nread;) {
+        d = (struct linux_dirent *) (buf + bpos);
+        //End of copy-paste
+
+        // fprintf(stderr, "%8ld  ", d->d_ino);  //Prints inode number
+        fprintf(stderr, "File: %s\n", d->d_name);
+        char* filename = (char*) d->d_name;
+
+        //Skips hidden files and directories (files that have names starting with '.')
+        if (filename[0] != '.') {
+          fprintf(stderr, "%s\n", "Filename's not hidden");
           /*---STAT---*/
           struct stat file_stat;
-          int val = my_stat(d->d_name, &file_stat);
-          fprintf(stderr, "Stat size: %d\n", (int)file_stat.st_size);
-          bpos += d->d_reclen;
-         }
-    //End of copy-paste
+
+          int val = my_stat(filename, &file_stat);
+          // fprintf(stderr, "Stat size: %d\n", (int)file_stat.st_size);
+          write_ls(filename, &file_stat);
+        }
+
+        bpos += d->d_reclen;    //Taken from man page
+      }
 
 }
