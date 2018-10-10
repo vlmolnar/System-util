@@ -6,8 +6,8 @@
 #include <dirent.h>
 
 //To be removed
-#include <stdio.h>
-#include <stdlib.h>
+// #include <stdio.h>
+// #include <stdlib.h>
 #include <sys/syscall.h>
 
 // A complete list of linux system call numbers can be found in: /usr/include/asm/unistd_64.h
@@ -39,16 +39,18 @@ int my_strlen(char* s) {
 }
 
 //A function to convert int variables to strings
-void int_to_char(int i, char* cs) {
+void my_int_to_str(int i, char* cs) {
   //Ref: https://stackoverflow.com/questions/8671845/iterating-through-digits-in-integer-in-c
 
   char* csp = cs;
-  int digit = 1000000000;
+  int digit = 1000000000;   //Works on 10-digit ints at most
 
   //Checks if int i has single digit
   if (i < 10) {
-    printf("%s\n", "Here");
-    *cs = i + '0';
+    // printf("%s\n", "Here");
+    *csp = i + '0';
+    csp+=1;
+    *csp = '\0'; //Null-terminates
   } else {
 
     //Finds greatest decimal of number
@@ -62,9 +64,9 @@ void int_to_char(int i, char* cs) {
       *csp = ((i / digit) % 10) + '0' ;
       csp+=1;
     }
+    *csp = '\0';  //Null-terminates
   }
-  printf("Int '%d' to char: %s\n", i, cs);
-  printf("Size is: %d\n", my_strlen(cs));
+  // printf("Int '%d' to char: %s\n", i, cs);
 }
 
 //Implementation of getdents Linux system call
@@ -118,8 +120,15 @@ void write_permissions(struct stat* file_stat) {
 }
 
 //A function that converts int to month name abbreviations, and prints it out
-void write_month(int month) {
-  switch (month) {
+void write_date(struct tm *mod_time) {
+  char printable[10];
+
+  my_write(" ");
+  my_int_to_str(mod_time->tm_mday, printable);
+  my_write(printable);
+
+  my_write(" ");
+  switch (mod_time->tm_mon) {
     case 0: my_write("Jan"); break;
     case 1: my_write("Feb"); break;
     case 2: my_write("Mar"); break;
@@ -134,6 +143,14 @@ void write_month(int month) {
     case 11: my_write("Dec"); break;
     default:my_write_err("Err");
   }
+
+  my_write(" ");
+  my_int_to_str(mod_time->tm_hour, printable);
+  my_write(printable);
+
+  my_write(":");
+  my_int_to_str(mod_time->tm_min, printable);
+  my_write(printable);
 }
 
 //Writes file data to console
@@ -145,20 +162,39 @@ int write_ls(char* filename, struct stat *file_stat) {
 
   struct timespec stat_time = file_stat->st_mtim;
   struct tm *mod_time = localtime(&stat_time.tv_sec);
+  char printable[10];
 
+  //Permissions
   write_permissions(file_stat);
-  fprintf(stderr, " %d ", (int)file_stat->st_nlink);
-  fprintf(stderr, " %d", (int)file_stat->st_uid);
-  fprintf(stderr, " %d", (int)file_stat->st_gid);
-  fprintf(stderr, " %d ", (int)file_stat->st_size);
 
-  //Date and time of last modification
-  // fprintf(stderr, " %d", mod_time->tm_mon);
-  write_month(mod_time->tm_mon);
-  fprintf(stderr, " %d", mod_time->tm_mday);
-  fprintf(stderr, " %d:%d", mod_time->tm_hour, mod_time->tm_min);
+  //Links
+  my_int_to_str((int)file_stat->st_nlink, printable);
+  my_write(" ");
+  my_write(printable);
 
-  fprintf(stderr, " %s\n", filename); //done
+  //User ID
+  my_int_to_str((int)file_stat->st_uid, printable);
+  my_write(" ");
+  my_write(printable);
+
+  //Group ID
+  my_int_to_str((int)file_stat->st_gid, printable);
+  my_write(" ");
+  my_write(printable);
+
+  //File size
+  my_int_to_str((int)file_stat->st_size, printable);
+  my_write(" ");
+  my_write(printable);
+
+  //Modification date
+  write_date(mod_time);
+
+
+  //File name
+  my_write(" ");
+  my_write(filename);
+  my_write("\n");
 
   return 0;
 
@@ -195,10 +231,10 @@ int main(int argc, char** argv) {
   */
 
   //TODO remove this
-  // char test[11];
-  // int_to_char(0,test);
-  // int_to_char(5,test);
-  // int_to_char(3675,test);
+  char test[11];
+  my_int_to_str(1,test);
+  my_int_to_str(5,test);
+  my_int_to_str(3675,test);
 
   /*---GETDENTS---*/
   //Taken from the man page with slight tweaks
@@ -212,7 +248,7 @@ int main(int argc, char** argv) {
     // fd = open(argc > 1 ? argv[1] : ".", O_RDONLY | O_DIRECTORY);
     fd = my_open(argc > 1 ? argv[1] : ".");   //Changed from man
          if (fd == -1) {
-          fprintf(stderr ,"Error: Something went wrong, fd is: %d\n", fd);
+           my_write_err("Error: Something went wrong when opening current directory");
           return -1;
          }
 
@@ -222,10 +258,10 @@ int main(int argc, char** argv) {
 
              if (nread == -1) {
                //ERROR, changed from original
-                 fprintf(stderr ,"Something went wrong, nread is: %d\n", nread);
+                  my_write_err("Error: Something went wrong while calling GETDENTS system call");
+                  return -1;
               } else {
                 //All works fine
-                  fprintf(stderr ,"All is well, nread is: %d\n", nread);
                   break;
                }
         }
@@ -240,12 +276,15 @@ int main(int argc, char** argv) {
 
         //Skips hidden files and directories (files that have names starting with '.')
         if (filename[0] != '.') {
-          // fprintf(stderr, "%s\n", "Filename's not hidden");
           /*---STAT---*/
           struct stat file_stat;
 
           int val = my_stat(filename, &file_stat);
           // fprintf(stderr, "Stat size: %d\n", (int)file_stat.st_size);
+          if(val) {
+            my_write_err("Error: Something went wrong while calling STAT system call");
+            return -1;
+          }
           write_ls(filename, &file_stat);
         }
 
