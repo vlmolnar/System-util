@@ -7,4 +7,4 @@ starter: starter.c
 	gcc -Wall -Wextra starter.c -o starter
 
 clean:
-	rm starter *.o
+	rm starter myls *.o
